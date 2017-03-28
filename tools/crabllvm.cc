@@ -28,7 +28,8 @@
 
 #include "crab_llvm/Passes.hh"
 #include "crab_llvm/CrabLlvm.hh"
-#include <crab_llvm/Transforms/InsertInvariants.hh>
+#include "crab_llvm/Analysis/AssumptionAnalysis.hpp"
+#include "crab_llvm/Transforms/InsertInvariants.hh"
 
 #include "crab/common/debug.hpp"
 
@@ -69,6 +70,10 @@ LowerSelect ("crab-lower-select",
              llvm::cl::desc ("Lower all select instructions"),
              llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+AssumptionAnalysis ("crab-aa", 
+        llvm::cl::desc ("Run the assumption analysis"),
+        llvm::cl::init (false));
 
 struct LogOpt {
   void operator= (const std::string &tag) const 
@@ -200,7 +205,11 @@ int main(int argc, char **argv) {
     /// -- run the crab analyzer
     pass_manager.add (new crab_llvm::CrabLlvm ());
   }
-
+  
+  if (AssumptionAnalysis) {
+    pass_manager.add (crab_llvm::createAssumptionAnalysisPass ());
+  }
+  
   if (!AsmOutputFilename.empty ()) 
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
  

@@ -6,7 +6,11 @@ if (USE_APRON)
   set (CRAB_LIBS ${CRAB_LIBS} ${APRON_LIBS}) 
 endif ()
 
-add_library (CrabLlvmAnalysis ${CRABLLVM_LIBS_TYPE}  
+add_library (CrabLlvmAssumptionAnalysis ${CRABLLVM_LIBS_TYPE}
+  AssumptionAnalysis.cc
+)
+
+add_library (CrabLlvmAnalysis ${CRABLLVM_LIBS_TYPE}
   CfgBuilder.cc
   CrabLlvm.cc
   NameValues.cc
@@ -18,6 +22,10 @@ if (USE_COTIRE)
 endif ()
 
 install(TARGETS CrabLlvmAnalysis 
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
+
+install(TARGETS CrabLlvmAssumptionAnalysis 
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib)
 

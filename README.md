@@ -295,6 +295,10 @@ The special thing about the above LLVM bitecode is the existence of
 that the result of the load instruction at block `loop.exit` is
 between 0 and 5.
 
+## To run the assumption analysis ## 
+
+`crabllvm.py  tests/test-aa-1.c --crab-aa --crab-cmp-to-select=all --crab-print-cfg --no-analyze`
+
 # Licensing #
 
 Crab-llvm is currently under a licensing process. Meanwhile, Crab-llvm cannot be

@@ -1481,18 +1481,33 @@ namespace crab_llvm
       // } else
       if (ConstantInt *CI = dyn_cast<ConstantInt> (cond)) {
         // -- cond is a constant
-        if ((CI->isOne () && isNotAssumeFn (callee)) || 
-            (CI->isZero () && !isNotAssumeFn (callee)))
-          m_bb.assume (z_lin_cst_t::get_false ()); 
+	
+	if (isNotAssumeFn (callee) && CI->isOne ()) {
+	  m_bb.assume (z_lin_cst_t::get_false ());
+	} else if (isNotAssumeFn (callee) && CI->isZero ()) {
+	  // do nothing
+	} else if (isAssumeFn (callee) && CI->isZero ()) {
+	  m_bb.assume (z_lin_cst_t::get_false ());
+	} else if (isAssumeFn (callee) && CI->isOne ()) {
+	  // do nothing
+	} else {
+	  assert (isAssertFn (callee));
+	  m_bb.assertion (CI->isZero () ?
+			  z_lin_cst_t::get_false () :
+			  z_lin_cst_t::get_true ());
+	}	
       } else { 
         // -- cond is any other instruction
+	
         varname_t lhs = m_sev.symVar (*cond);
         if (isNotAssumeFn (callee))
           m_bb.assume (z_lin_exp_t (lhs) == z_lin_exp_t (0));
         else if (isAssumeFn (callee))
           m_bb.assume (z_lin_exp_t (lhs) == z_lin_exp_t (1));
-        else 
+        else {
+	  assert (isAssertFn (callee));	  
           m_bb.assertion (z_lin_exp_t (lhs) == z_lin_exp_t (1), getDebugLoc(&I));
+	}
       }
 
     }

@@ -216,6 +216,10 @@ def parseArgs (argv):
     p.add_argument ('--crab-keep-shadows',
                     help=a.SUPPRESS,
                     dest='crab_keep_shadows', default=False, action='store_true')
+    ######## Analyses
+    p.add_argument ('--crab-aa',
+                    help='Assumption analysis',
+                    dest='crab_aa', default=False, action='store_true')
     #### END CRAB
     
     args = p.parse_args (argv)
@@ -475,6 +479,9 @@ def crabllvm (in_name, out_name, args, extra_opts, cpu = -1, mem = -1):
     if args.crab_cmp_to_select != 'none':            
         crabllvm_cmd.append ('--crab-cmp-to-select={0}'.format (args.crab_cmp_to_select))
 
+    if args.crab_aa:
+        crabllvm_cmd.append('--crab-aa')
+        
     # hidden options
     if args.crab_cfg_simplify: crabllvm_cmd.append ('--crab-cfg-simplify')
     if args.crab_keep_shadows: crabllvm_cmd.append ('--crab-keep-shadows')
