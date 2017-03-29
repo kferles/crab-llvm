@@ -237,7 +237,7 @@ namespace crab_llvm
             I.getOpcode() == Instruction::UDiv ||
             I.getOpcode() == Instruction::SDiv ||
             I.getOpcode() == Instruction::URem ||
-              I.getOpcode() == Instruction::SRem);
+	    I.getOpcode() == Instruction::SRem);
   }
 
   static bool isAssertFn(const Function* F) {
@@ -248,7 +248,8 @@ namespace crab_llvm
 
   static bool isErrorFn(const Function* F) {
     return (F->getName().equals("seahorn.error") ||
-	    F->getName().equals("seahorn.fail") || 	    
+	    F->getName().equals("seahorn.fail") ||
+	    F->getName().equals("__VERIFIER_error") || 	    	    
             F->getName().equals("__SEAHORN_error"));
   }
 
@@ -264,11 +265,23 @@ namespace crab_llvm
     return (isAssertFn (F) || isErrorFn (F) || isAssumeFn(F) || isNotAssumeFn (F));
   }
 
+  static Function* getCalledFunction (llvm::CallSite &CS) {
+    Function* calleeF = CS.getCalledFunction ();
+    
+    if (!calleeF) {
+      if (CallInst *CI = dyn_cast<CallInst> (CS.getInstruction ())) {
+	Value* calleeV = CI->getCalledValue ();
+	calleeF = dyn_cast<Function> (calleeV->stripPointerCasts());
+      }
+    }
+    return calleeF;
+  }
+  
   static bool containsVerifierCall (BasicBlock &B) {
     for (auto &I: B) {
       if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         llvm::CallSite CS (CI);
-        Function * callee = CS.getCalledFunction ();
+        Function * callee = getCalledFunction (CS);
         if (callee && isVerifierCall (callee)) 
           return true;
       }
@@ -772,7 +785,7 @@ namespace crab_llvm
         }
         else if (CallInst *CI = dyn_cast<CallInst> (U.getUser())) { 
           CallSite CS (CI);
-          Function* callee = CS.getCalledFunction ();
+          Function* callee = getCalledFunction (CS);
           if (callee && ( callee->getName().startswith ("llvm.dbg") || 
                           callee->getName().startswith ("shadow.mem")))
             continue;
@@ -1439,11 +1452,11 @@ namespace crab_llvm
 
     void doVerifierCall (CallInst &I) {
       CallSite CS (&I);
-      Function * callee = CS.getCalledFunction ();
+      Function * callee = getCalledFunction (CS);
       
-      if (!callee) 
+      if (!callee)
         return;
-      
+
       if (isErrorFn(callee)) {
         m_bb.assertion (z_lin_cst_t::get_false(), getDebugLoc(&I));
         return;
@@ -1514,9 +1527,9 @@ namespace crab_llvm
 
     void visitCallInst (CallInst &I) {
       CallSite CS (&I);
-      Function * callee = CS.getCalledFunction ();
+      Function * callee = getCalledFunction (CS);
 
-      if (!callee) {         
+      if (!callee) {
         // --- If we are here is either because the function is Asm or
         //     we could not resolve the indirect call.
 
