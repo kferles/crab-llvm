@@ -17,6 +17,7 @@
 #include "crab_llvm/Support/NameValues.hh"
 
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/bimap.hpp>
 
@@ -202,23 +203,59 @@ namespace crab_llvm {
        	 class add_control_deps:
        	   public std::binary_function<assert_wrapper_t, var_dom_t, std::pair<var_dom_t,bool> >
        	 {
+	   const cdg_t &cdg;
+	   const std::vector<basic_block_label_t> &roots;
+	   
 	   var_dom_t uses;
-	   const std::vector<basic_block_label_t> &cdeps;
+
+	   // return true if we find a path in cdg from root to target
+	   // FIXME: do caching for the queries
+	   bool reach (basic_block_label_t root,
+		       basic_block_label_t target,
+		       boost::unordered_set<basic_block_label_t> &visited) {
+	     if (root == target)
+	       return true;
+
+	     // break cycles
+	     if (visited.find (root) != visited.end ())
+	       return false;
+
+	     visited.insert (root);
+	     auto it = cdg.find (root);
+	     if (it == cdg.end ()) return false;
+	     
+	     for (auto child: it->second) {
+	       if (reach (child, target, visited))
+		 return true;
+	     }
+	     return false;
+	   }
+
+	   bool reach (basic_block_label_t target) {
+	     boost::unordered_set <basic_block_label_t> visited;
+	     for (auto r: roots)
+	       if (reach(r, target,visited))
+		 return true;
+	     return false;
+	   }
 	   
 	 public:
 	   
-       	   add_control_deps (const live_t& l, const std::vector<basic_block_label_t>& deps)
-	     : uses(var_dom_t::bottom()), cdeps (deps) {
+       	   add_control_deps (const cdg_t & _cdg,
+			     const std::vector<basic_block_label_t>& _roots,
+			     const live_t& l)
+	     : cdg(_cdg), roots (_roots), uses(var_dom_t::bottom()) {
 	     for (auto v: boost::make_iterator_range(l.uses_begin(), l.uses_end()))
 	       uses += v;
 	   }
 
-	   add_control_deps (const add_data_deps &o): uses (o.uses), cdeps (o.cdeps) {}
+	   add_control_deps (const add_data_deps &o)
+	     : cdg (o.cdg), roots (o.roots), uses (o.uses) {}
 	   
        	   std::pair<var_dom_t,bool> operator()(assert_wrapper_t w, var_dom_t d) {
        	     bool change = false;
 
-	     if (std::find (cdeps.begin (), cdeps.end (), w.bbl) != cdeps.end ()) {
+	     if (reach (w.bbl)) {
 	       d += uses;
 	       change = true;
 	     }	       
@@ -312,9 +349,12 @@ namespace crab_llvm {
 	   // statements are located in the successors of the blocks
 	   // where the original if-then-else was located.
 	   for (auto const &pred: boost::make_iterator_range(_bb.prev_blocks ())) {
+	     // it->second is the set of basic blocks that control
+	     // dependent on s' block
 	     auto it = _cdg.find (/*_bb*/ pred);
 	     if (it != _cdg.end ()) {
-	       apply_add_control_t cf (add_control_deps (s.get_live (), it->second));
+	       auto const &children =  it->second;
+	       apply_add_control_t cf (add_control_deps (_cdg, children, s.get_live ()));
 	       _inv = cf (_inv);
 	       CRAB_LOG("aa-step",
 			crab::outs () << "\tAFTER control-dep " << _inv << "\n";);
@@ -586,6 +626,17 @@ namespace crab_llvm {
        for (auto &F : M) {
 	 change |= runOnFunction (F); 
        }
+
+       crab::outs () << "BRUNCH_STAT Assertions "  << num_assertions << "\n";
+       crab::outs () << "BRUNCH_STAT Assumptions " << num_assumptions << "\n";
+		     
+       if (num_assertions > 0) {
+	 float avg = (float) num_rel_assumptions / (float) num_assertions;
+	 crab::outs () << "BRUNCH_STAT AvgAssumptionsPerAssertion " << avg << "\n";
+       }
+       crab::outs () << "BRUNCH_STAT MaxAssumptionsPerAssertion "
+		     << max_rel_assum_per_assertion << "\n";
+       
        return change;
      }
   
@@ -603,16 +654,30 @@ namespace crab_llvm {
 		     &getAnalysis<TargetLibraryInfo>());
        auto cfg_ptr = B.getCfg ();
 
-       crab::outs () << "Running assumption analysis .. \n";
+       crab::outs () << "Running assumption analysis on " << F.getName () << "\n";
        assumption_analysis<cfg_ref_t>  aa (*cfg_ptr);
        aa.exec ();
-       { // Collect stats from the assumption analysis
-	 unsigned num_assertions = 0;
-	 unsigned num_assumptions = 0;
-	 unsigned num_max_assum_per_assertion = 0;
+       
+       { // Gather statistics
+	 for (auto &bb: boost::make_iterator_range(cfg_ptr->begin(), cfg_ptr->end())) {
+	   for (auto &s: bb) {
+	     if (s.is_bin_op ()) {
+	       // XXX: We only consider some arithmetic operations as
+	       // unjustified assumptions
+	       typedef typename crab::cfg_impl::cfg_ref_t::basic_block_t basic_block_t;
+	       auto bin_op_s = static_cast<const basic_block_t::z_bin_op_t*> (&s);
+	       if (bin_op_s->op () == crab::BINOP_ADD ||
+		   bin_op_s->op () == crab::BINOP_SUB ||
+		   bin_op_s->op () == crab::BINOP_MUL) {
+		 num_assumptions++;
+	       }
+	     }
+	     if (s.is_assert ())
+	       num_assertions++;
+	   }
+	 }
 	 for (auto &kv : boost::make_iterator_range(aa.begin(), aa.end())) {
 	   crab::outs () << *(kv.first) << " verified\n";
-	   num_assertions++;
 	   unsigned k = 0;
 	   for (auto as: kv.second) {
 	     crab::outs () << "\t";
@@ -620,23 +685,13 @@ namespace crab_llvm {
 	     k++;
 	     crab::outs () << "\n";
 	   }
-	   num_assumptions += k;
-	   if (k > num_max_assum_per_assertion)
-	     num_max_assum_per_assertion = k;
+	   num_rel_assumptions += k;
+	   if (k > max_rel_assum_per_assertion)
+	     max_rel_assum_per_assertion = k;
 	   crab::outs () << "\n";
 	 }
-	 crab::outs () << "BRUNCH_STAT Number of Assertions "
-		       << num_assertions << "\n";
-	 // crab::outs () << "BRUNCH_STAT Number of Assumptions "
-	 // 		  << num_checked_statements << "\n";
-	 if (num_assertions > 0) {
-	   float avg = (float) num_assumptions / (float) num_assertions;
-	   crab::outs () << "BRUNCH_STAT Avg Number of Assumptions per Assertion "
-			 << avg << "\n";
-	 }
-	 crab::outs () << "BRUNCH_STAT Max Number of Assumptions per Assertion "
-		       << num_max_assum_per_assertion << "\n";
-       }
+	 
+       } // end gather statistics
        
        return false;
      }

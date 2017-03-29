@@ -133,9 +133,20 @@ namespace crab_llvm {
      };
 
   class AssumptionAnalysisPass: public llvm::ModulePass {
+    
+    // Collect stats from the assumption analysis
+    unsigned num_assertions;
+    unsigned num_assumptions;
+    unsigned num_rel_assumptions;
+    unsigned max_rel_assum_per_assertion;
+    
   public:
     static char ID;
-    AssumptionAnalysisPass (): llvm::ModulePass (ID) {}
+    AssumptionAnalysisPass ()
+      : llvm::ModulePass (ID),
+        num_assertions (0), num_assumptions (0),
+        num_rel_assumptions (0), max_rel_assum_per_assertion (0) {}
+    
     virtual bool runOnModule (llvm::Module& M);
     virtual bool runOnFunction (llvm::Function& F);    
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const ;
