@@ -12,15 +12,13 @@ int main ()
   {
     if (nd ()) {
       x = x+y;
-      //y = y+z;
       y++;
-      if (x>0) {
-	if (y>0) {
+      if (z>0) {
+	if (nd ()) {
 	  __CRAB_assert (0);
 	}
       }
     }
-    i++;
     z++;
   }
 
@@ -28,3 +26,15 @@ int main ()
   __CRAB_assert(z >=0);
   return x+y;
 }
+
+
+/*
+   assert (false) verified 
+          i++
+          z++
+   assert (x >= y) verified
+          x=x+y
+          y++
+   assert (z >=0)  verified
+          z++
+ */
