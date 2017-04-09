@@ -68,9 +68,11 @@ namespace crab_llvm {
      private:
 
        var_dom_t _get_vars (const statement_t *s) const {
-	 assert (s->op () == crab::BINOP_ADD ||
-		 s->op () == crab::BINOP_SUB ||
-		 s->op () == crab::BINOP_MUL);
+	 // assert (s->is_bin_op ());
+	 // auto binop = static_cast<const typename CFG::basic_block_t::z_bin_op_t*> (s);
+	 // assert (binop->op () == crab::BINOP_ADD ||
+	 // 	 binop->op () == crab::BINOP_SUB ||
+	 // 	 binop->op () == crab::BINOP_MUL);
 	 
 	 var_dom_t vars;
 	 auto lvars = s->get_live ();
