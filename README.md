@@ -299,17 +299,9 @@ between 0 and 5.
 
 `crabllvm.py  tests/test-aa-1.c --crab-aa --crab-cmp-to-select=all --crab-print-cfg --no-analyze`
 
-# Licensing #
-
-Crab-llvm is currently under a licensing process. Meanwhile, Crab-llvm cannot be
-publicly distributed.
-
 # Known limitations of the translation from bitecode to Crab CFG#
 
-- Variadic functions are ignored.
 - Only unlimited integers.
 - Floating point operations are ignored 
-- Pointer addresses are abstracted by their numerical offsets. This
-  means that if you want to use a shape/pointer abstract domain the
-  translation must be extended.
-- ...
+- The translation abstracts pointer operations to arithmetic
+  operations involving only numerical offsets.
