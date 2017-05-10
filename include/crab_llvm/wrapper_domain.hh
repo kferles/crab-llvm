@@ -1,115 +1,16 @@
-#ifndef __ABSTRACT_DOMAINS_HH__
-#define __ABSTRACT_DOMAINS_HH__
-
-#include "llvm/Support/ErrorHandling.h"
+#ifndef __WRAPPER_DOMAIN_HH__
+#define __WRAPPER_DOMAIN_HH__
 
 #include "crab_llvm/config.h"
-#include "crab_llvm/CfgBuilder.hh"
-
-#include "crab/domains/linear_constraints.hpp"                     
-#include "crab/domains/intervals.hpp"                      
-#include "crab/domains/dis_intervals.hpp"                      
-#include "crab/domains/sparse_dbm.hpp"
-#include "crab/domains/split_dbm.hpp"
-#include "crab/domains/boxes.hpp"
-#include "crab/domains/apron_domains.hpp"
-#include "crab/domains/array_smashing.hpp"
-#include "crab/domains/term_equiv.hpp"
-#include "crab/domains/combined_domains.hpp"
+#include "crab_llvm/crab_domains.hh"
 
 /*
-   Definition of the abstract domains and a generic wrapper class (for
-   crab-llvm clients) to contain an arbitrary abstract domain.  
+   Definition of a generic wrapper class (for crab-llvm clients) to
+   contain an arbitrary abstract domain.
 */
 
 
-namespace crab_llvm {
-
-   ////
-   // Base (non-array) numerical domains for user options
-   ////
-
-   enum CrabDomain { INTERVALS, 
-                     INTERVALS_CONGRUENCES, 
-                     BOXES,
-                     DIS_INTERVALS,
-                     ZONES_SPARSE_DBM, 
-                     ZONES_SPLIT_DBM,
-                     TERMS_INTERVALS,
-                     TERMS_DIS_INTERVALS,
-                     TERMS_ZONES, // TERMS_INTERVALS x  ZONES_SPLIT_DBM
-                     ADAPT_TERMS_ZONES, // (#live vars < threshold ? TERMS_INTERVALSxZONES_SPLIT_DBM, INTERVALS)
-                     OPT_OCT_APRON,
-                     PK_APRON };
-
-  //////
-  /// Definition of the abstract domains
-  //////
-
-  using namespace crab::cfg_impl;
-  using namespace crab::domains;
-  using namespace ikos;
-
-  /// --- Types for linear constraints and expressions
-  typedef ikos::linear_expression<z_number, varname_t> z_lin_exp_t;
-  typedef ikos::linear_constraint<z_number, varname_t> z_lin_cst_t;
-  typedef ikos::linear_constraint_system<z_number, varname_t> z_lin_cst_sys_t;
-
-  //////
-  //// Base domains
-  //////
-
-  /// -- Intervals
-  typedef interval_domain< z_number, varname_t> interval_domain_t;
-  /// -- Zones with sparse DBM
-  typedef SpDBM_impl::DefaultParams<z_number> SparseDBMGraph;
-  typedef SparseDBM<z_number, varname_t, SparseDBMGraph> dbm_domain_t;
-  /// -- Zones with split DBM
-  typedef SDBM_impl::DefaultParams<z_number> SplitDBMGraph;
-  typedef SplitDBM<z_number, varname_t, SplitDBMGraph> split_dbm_domain_t;
-  /// -- Boxes
-  typedef boxes_domain<z_number, varname_t> boxes_domain_t;
-  /// -- DisIntervals
-  typedef dis_interval_domain <z_number, varname_t> dis_interval_domain_t;
-  /// -- Apron domains
-  typedef apron_domain< z_number, varname_t, apron_domain_id_t::APRON_OPT_OCT > opt_oct_apron_domain_t;
-  typedef apron_domain< z_number, varname_t, apron_domain_id_t::APRON_PK > pk_apron_domain_t;
-
-  //////
-  /// Combination/functor of domains 
-  //////
-
-  /// -- Reduced product of intervals with congruences
-  typedef numerical_congruence_domain<interval_domain_t> ric_domain_t;
-  /// -- Term functor domain with Intervals
-  typedef crab::cfg::var_factory_impl::str_var_alloc_col::varname_t str_varname_t;
-  typedef interval_domain<z_number, str_varname_t> str_interval_dom_t;
-  typedef term::TDomInfo<z_number, varname_t, str_interval_dom_t> idom_info;
-  typedef term_domain<idom_info> term_int_domain_t;  
-  /// -- Term functor domain with DisIntervals
-  typedef dis_interval_domain<z_number, str_varname_t> str_dis_interval_dom_t;
-  typedef term::TDomInfo<z_number, varname_t, str_dis_interval_dom_t> dis_idom_info;
-  typedef term_domain<dis_idom_info> term_dis_int_domain_t;  
-  /// -- Reduced product of Term(DisIntervals) with split zones
-  typedef reduced_numerical_domain_product2<term_dis_int_domain_t, split_dbm_domain_t> num_domain_t; 
-  /// -- Array smashing functor domain 
-  typedef array_smashing<interval_domain_t> arr_interval_domain_t;
-  typedef array_smashing<ric_domain_t> arr_ric_domain_t;
-  typedef array_smashing<dbm_domain_t> arr_dbm_domain_t;
-  typedef array_smashing<split_dbm_domain_t> arr_split_dbm_domain_t;
-  typedef array_smashing<term_int_domain_t> arr_term_int_domain_t;
-  typedef array_smashing<term_dis_int_domain_t> arr_term_dis_int_domain_t;
-  typedef array_smashing<boxes_domain_t> arr_boxes_domain_t;
-  typedef array_smashing<dis_interval_domain_t> arr_dis_interval_domain_t;
-  typedef array_smashing<num_domain_t> arr_num_domain_t;
-  typedef array_smashing<opt_oct_apron_domain_t> arr_opt_oct_apron_domain_t;
-  typedef array_smashing<pk_apron_domain_t> arr_pk_apron_domain_t;
-
-}
-
 namespace llvm {
-
-  using namespace std;
 
   #define DUMP_TO_LLVM_STREAM(T)  \
   inline llvm::raw_ostream& operator<< (llvm::raw_ostream& o, \
@@ -174,8 +75,15 @@ namespace crab_llvm {
      ABS_DOM m_abs;                                                            \
     public:                                                                    \
      id_t getId () const { return m_id;}                                       \
-                                                                               \
+       									       \
+     WRAPPER (ABS_DOM abs, id_t id): GenericAbsDomWrapper(), m_id(id), m_abs(abs) { } \
+  									       \
      WRAPPER (ABS_DOM abs): GenericAbsDomWrapper (), m_id (ID), m_abs (abs) { }\
+                                                                               \
+     GenericAbsDomWrapperPtr clone () const {                                  \
+       auto res = boost::make_shared<WRAPPER>(m_abs, m_id); 		       \
+       return res;                                                             \
+     }                                                                         \
                                                                                \
      ABS_DOM& get () { return m_abs; }                                         \
                                                                                \
@@ -222,6 +130,8 @@ namespace crab_llvm {
 
   struct GenericAbsDomWrapper {
 
+    typedef boost::shared_ptr<GenericAbsDomWrapper> GenericAbsDomWrapperPtr;
+    
      typedef enum { intv, dbm, split_dbm, 
                     term_intv, term_dis_intv, 
                     ric, 
@@ -239,10 +149,12 @@ namespace crab_llvm {
 
      GenericAbsDomWrapper () { }
 
-    virtual ~GenericAbsDomWrapper () { }
+     virtual ~GenericAbsDomWrapper () { }
 
      virtual id_t getId () const = 0;
 
+     virtual GenericAbsDomWrapperPtr clone () const = 0;
+    
      virtual void write (crab::crab_os& o) = 0;
 
      virtual z_lin_cst_sys_t to_linear_constraints () = 0;
@@ -250,7 +162,7 @@ namespace crab_llvm {
      virtual void forget(const vector<varname_t>& vars) = 0;
    };
 
-   typedef boost::shared_ptr<GenericAbsDomWrapper> GenericAbsDomWrapperPtr;
+   typedef GenericAbsDomWrapper::GenericAbsDomWrapperPtr GenericAbsDomWrapperPtr;
 
    inline crab::crab_os& operator<<(crab::crab_os& o , 
                                     const GenericAbsDomWrapperPtr& v) {
@@ -310,7 +222,8 @@ namespace crab_llvm {
     private:
      
      typedef array_smashing<B> array_smashing_t;       
-
+     typedef ArraySmashingDomainWrapper<B> this_type;
+     
      id_t m_id;     
      array_smashing_t m_abs;
      
@@ -320,6 +233,11 @@ namespace crab_llvm {
      
      ArraySmashingDomainWrapper(array_smashing_t abs):  
          GenericAbsDomWrapper (), m_id (getAbsDomId(abs)), m_abs (abs) { }
+
+     GenericAbsDomWrapperPtr clone () const {
+       auto res = boost::make_shared<this_type>(m_abs);
+       return res; 
+     }
      
      array_smashing_t& get () {
        return m_abs;
@@ -334,9 +252,8 @@ namespace crab_llvm {
      }
 
      void forget (const vector<varname_t>& vars) { 
-       crab::domains::domain_traits<array_smashing_t>::forget (m_abs,          
-                                                               vars.begin (),  
-                                                               vars.end ());   
+       crab::domains::domain_traits<array_smashing_t>::
+	 forget (m_abs,vars.begin (),vars.end ());
      }                                                                   
    };
 
@@ -356,5 +273,6 @@ namespace crab_llvm {
      abs_dom = wrappee->get ();
    }
 
-} // end namespace
+} // end namespace crab_llvm
+
 #endif

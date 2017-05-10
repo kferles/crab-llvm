@@ -617,7 +617,7 @@ namespace crab_llvm {
      end () const { return _impl->end();}
 
      // specialization
-     template class assumption_analysis<crab::cfg_impl::cfg_ref_t>;
+     template class assumption_analysis<cfg_ref_t>;
 
 
      // LLVM pass
@@ -664,7 +664,7 @@ namespace crab_llvm {
 	     if (s.is_bin_op ()) {
 	       // XXX: We only consider some arithmetic operations as
 	       // unjustified assumptions
-	       typedef typename crab::cfg_impl::cfg_ref_t::basic_block_t basic_block_t;
+	       typedef typename cfg_ref_t::basic_block_t basic_block_t;
 	       auto bin_op_s = static_cast<const basic_block_t::z_bin_op_t*> (&s);
 	       if (bin_op_s->op () == crab::BINOP_ADD ||
 		   bin_op_s->op () == crab::BINOP_SUB ||

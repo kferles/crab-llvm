@@ -1,18 +1,37 @@
 # Crab-llvm #
 
-<img src="https://upload.wikimedia.org/wikipedia/en/4/4c/LLVM_Logo.svg" alt="llvm logo" width=280 height=200 /> 
-<img src="http://i.imgur.com/IDKhq5h.png" alt="crab logo" width=280 height=200 /> 
+<a href="https://travis-ci.org/caballa/crab-llvm"><img src="https://travis-ci.org/caballa/crab-llvm.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a>
+
+<img src="https://upload.wikimedia.org/wikipedia/en/4/4c/LLVM_Logo.svg" alt="llvm logo" width=280 height=200 /> <img src="http://i.imgur.com/IDKhq5h.png" alt="crab logo" width=280 height=200 /> 
 
 Crab-llvm is a static analyzer that computes inductive invariants for
 LLVM-based languages based on the
-[Crab](https://github.com/seahorn/crab) tool.
+[Crab](https://github.com/seahorn/crab) library.
 
 # Installation #
 
-Crab-llvm is written in C++ and uses heavily the Boost library. You will need:
+Crab-llvm is written in C++ and uses heavily the Boost library. The
+main requirements are:
 
 - C++ compiler supporting c++11
-- Boost and GMP
+- Boost
+- GMP 
+- MPFR (if `-DUSE_APRON=ON`)
+
+In linux, you can install requirements typing the commands:
+
+     sudo apt-get install libboost-all-dev libboost-program-options-dev
+     sudo apt-get install libgmp-dev
+     sudo apt-get install libmpfr-dev	
+
+Then, the basic compilation steps are:
+
+     mkdir build && cd build
+     cmake -DCMAKE_INSTALL_PREFIX=_DIR_ ../
+     cmake --build . --target crab && cmake ..
+     cmake --build . --target llvm && cmake ..      
+     cmake --build . --target install 
+
 
 If you want Crab-llvm to reason about pointers and arrays you need to
 download the following package at the root directory:
@@ -22,7 +41,7 @@ download the following package at the root directory:
 DSA (Data Structure Analysis) is a heap analysis described
 [here](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps).
 
-Another optional component used is:
+Another optional but very recommended component is:
 
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
@@ -30,20 +49,36 @@ Another optional component used is:
 `IndVarSimplify` LLVM passes as well as a LLVM pass to convert
 undefined values into nondeterministic calls.
 
-Then, the compilation steps are:
+To include `dsa-seahorn` and `llvm-seahorn`, type instead:
 
-1. ```mkdir build ; cd build```
-2. ```cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=my_install_dir ../```
+     mkdir build && cd build
+     cmake -DCMAKE_INSTALL_PREFIX=_DIR_ ../
+     cmake --build . --target extra            
+     cmake --build . --target crab && cmake ..
+     cmake --build . --target llvm && cmake ..           
+     cmake --build . --target install 
 
-If you want to use the boxes domain then add to step 2 `-DUSE_LDD=ON`.
+If you want to use the boxes domain then add `-DUSE_LDD=ON`.
 
-If you want to use the apron domains then add to step 2 `-DUSE_APRON=ON`.
+If you want to use the apron domains then add `-DUSE_APRON=ON`.
 
-(Optionally) To run some regression tests:
+To install `crab-llvm` with Boxes and Apron:
 
-3. ```cmake --build . --target test-crabllvm```
+     mkdir build && cd build
+     cmake -DCMAKE_INSTALL_PREFIX=_DIR_ -DUSE_LDD=ON -DUSE_APRON=ON ../
+     cmake --build . --target extra                 
+     cmake --build . --target crab && cmake ..
+     cmake --build . --target ldd && cmake ..
+     cmake --build . --target apron && cmake ..
+     cmake --build . --target llvm && cmake ..                
+     cmake --build . --target install 
 
-For step 3 you need to install `lit` and `OutputCheck`:
+
+To run some regression tests:
+
+     cmake --build . --target tests
+
+To run tests you need to install `lit` and `OutputCheck`. In Linux:
 
 ```
 $ apt-get install python-pip
@@ -222,12 +257,13 @@ memory contents is desired.
 
 Finally, to make easier the communication with other LLVM-based tools,
 Crab-llvm can output the invariants by inserting them into the LLVM
-bitecode via `verifier.assume` instructions. The option
+bitcode via `verifier.assume` instructions. The option
 `--crab-add-invariants=block-entry` injects the invariants that hold
 at each basic block entry while option
 `--crab-add-invariants=after-load` injects the invariants that hold
-right after each LLVM load instruction. To see the final LLVM bitecode
-just add the option `-o out.bc`.
+right after each LLVM load instruction. The option `all` injects
+invariants in all above locations. To see the final LLVM bitcode just
+add the option `-o out.bc`.
   
 Consider the next program:
 
@@ -249,9 +285,8 @@ Consider the next program:
 
 and type
 
-    crabllvm.py test.c --crab-live --crab-track=arr --crab-add-invariants-at-entries \
-	--crab-add-invariants-after-loads -o test.crab.bc
-
+    crabllvm.py test.c --crab-live --crab-track=arr --crab-add-invariants=all -o test.crab.bc
+    llvm-dis test.crab.bc
 
 The content of `test.crab.bc` should be similar to:
 
@@ -288,7 +323,7 @@ The content of `test.crab.bc` should be similar to:
     }
 ```
 
-The special thing about the above LLVM bitecode is the existence of
+The special thing about the above LLVM bitcode is the existence of
 `@verifier.assume` instructions. For instance, the instruction
 `@verifier.assume(i1 %crab_2)` indicates that `%i.0` is between 0 and
 10 at the loop header. Also, `@verifier.assume(i1 %crab_23)` indicates
@@ -299,9 +334,12 @@ between 0 and 5.
 
 `crabllvm.py  tests/test-aa-1.c --crab-aa --crab-cmp-to-select=all --crab-print-cfg --no-analyze`
 
-# Known limitations of the translation from bitecode to Crab CFG#
+# Known limitations of the translation from bitcode to Crab CFG #
 
-- Only unlimited integers.
-- Floating point operations are ignored 
+- Translation only covers integers and we use unlimited integers so no
+  machine arithmetic is considered.
+  
 - The translation abstracts pointer operations to arithmetic
-  operations involving only numerical offsets.
+  operations that keep track only of numerical offsets. This is
+  because the original use was proving absence of buffer overflows. We
+  are working on having a more general translation. 
